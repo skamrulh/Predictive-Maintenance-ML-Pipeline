@@ -1,19 +1,16 @@
 # GitHub Actions Workflow for Predictive Maintenance Pipeline
 
 name: CI Pipeline
-
 # Triggers the workflow on push or pull request events to the main branch.
 on:
   push:
     branches: [ main ]
   pull_request:
     branches: [ main ]
-
 jobs:
   build_train_test:
     # Runs on the latest Ubuntu image
     runs-on: ubuntu-latest
-    
     steps:
     - name: Checkout Repository
       uses: actions/checkout@v4
@@ -30,13 +27,13 @@ jobs:
       run: mkdir data models artifacts
 
     # 1. Run the entire pipeline (Data Generation, Training, Evaluation)
-    - name: Run Data Generation
+    - name: 🚀 Run Data Generation
       run: python generate_synthetic_data.py
       
-    - name: Train Classification Model
+    - name: 🧠 Train Classification Model
       run: python train_classification.py
       
-    - name: Train RUL Model
+    - name: 🧠 Train RUL Model
       run: python train_rul.py
 
     - name: ✅ Evaluate Classification Model
@@ -46,17 +43,35 @@ jobs:
       run: python evaluate_rul.py
 
     # 2. Test API (Sanity Check)
-    # Since we can't run uvicorn forever, we'll run a quick API sanity test.
-    # We use a trick: start the server in the background and use curl to check health.
-    - name: Run API Health Check
-      # Start the API in the background (&) and wait for it to be ready.
+    - name: 🧪 Run API Health Check (with Wait)
+      # 1. Start Uvicorn in the background.
+      # 2. Use a loop to repeatedly check the service until it responds (max 20 attempts).
       run: |
-        python -c "import uvicorn; from api import app; import threading; threading.Thread(target=lambda: uvicorn.run(app, host='0.0.0.0', port=8000)).start()" &
-        # Give the server a few seconds to start up
-        sleep 5
-        # Hit the health check endpoint
-        curl http://localhost:8000/health
-        # The workflow will fail if the curl command above returns a non-200 status or times out
+        # Start Uvicorn in the background using the correct path and port
+        nohup uvicorn api:app --host 0.0.0.0 --port 8000 &
+        
+        echo "Waiting for API to start on port 8000..."
+        MAX_ATTEMPTS=20
+        ATTEMPTS=0
+        while [ $ATTEMPTS -lt $MAX_ATTEMPTS ]; do
+            # Try to connect, suppressing output/errors
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8000/health)
+            if [ "$STATUS" -eq 200 ]; then
+                echo "API is ready! (Status 200)"
+                break
+            fi
+            ATTEMPTS=$((ATTEMPTS + 1))
+            echo "Attempt $ATTEMPTS/$MAX_ATTEMPTS: Status $STATUS. Waiting 1 second..."
+            sleep 1
+        done
+
+        if [ $ATTEMPTS -eq $MAX_ATTEMPTS ]; then
+            echo "❌ API failed to start after $MAX_ATTEMPTS attempts."
+            exit 1
+        fi
+        
+        echo "Final API test: Checking root endpoint /"
+        curl -X GET http://localhost:8000/
       shell: bash
 
     - name: Archive Metrics Artifacts
