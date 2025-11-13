@@ -22,11 +22,12 @@ Project/
 ├── config.yaml # Configuration file for paths and parameters
 │
 ├── generate_synthetic_data.py # 1. Run this first
-├── train_classification.py # 2. Run this second (Not provided)
-├── train_rul.py # 3. Run this third (Not provided)
+├── train_classification.py # 2. Run this second
+├── train_rul.py # 3. Run this third 
 │
 ├── evaluate_classification.py # (Optional) Evaluate the classification model
 ├── evaluate_rul.py # (Optional) Evaluate the RUL model
 ├── predict_classification.py # Example batch prediction script
 │
+
 └── requirements.txt # Python dependencies
