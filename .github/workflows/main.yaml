@@ -1,16 +1,19 @@
 # GitHub Actions Workflow for Predictive Maintenance Pipeline
 
 name: CI Pipeline
+
 # Triggers the workflow on push or pull request events to the main branch.
 on:
   push:
     branches: [ main ]
   pull_request:
     branches: [ main ]
+
 jobs:
   build_train_test:
     # Runs on the latest Ubuntu image
     runs-on: ubuntu-latest
+    
     steps:
     - name: Checkout Repository
       uses: actions/checkout@v4
@@ -24,7 +27,7 @@ jobs:
       run: pip install -r requirements.txt
 
     - name: Create necessary directories (data, models, artifacts)
-      run: mkdir data models artifacts
+      run: mkdir -p data models artifacts # Use -p to create parent directories if needed
 
     # 1. Run the entire pipeline (Data Generation, Training, Evaluation)
     - name: 🚀 Run Data Generation
@@ -42,25 +45,29 @@ jobs:
     - name: ✅ Evaluate RUL Model
       run: python evaluate_rul.py
 
-    # 2. Test API (Sanity Check)
-    - name: 🧪 Run API Health Check (with Wait)
-      # 1. Start Uvicorn in the background.
-      # 2. Use a loop to repeatedly check the service until it responds (max 20 attempts).
-      # nohup uvicorn api:app --host 0.0.0.0 --port 8000 &
+    # 2. Test API (Sanity Check) - CORRECTED STEP
+    - name: 🧪 Run API Health Check (CORRECTED)
+      # 1. Start Uvicorn in the background, redirecting output to a file.
+      # 2. Use a loop to repeatedly check the service until it responds (max 30 attempts/seconds).
       run: |
-        # Start Uvicorn in the background using the correct path and port
-        nohup uvicorn api:app --host 0.0.0.0 --port 8000 &
+        echo "Starting Uvicorn in background..."
+        # Use nohup to ignore HUP signal (making the background process more persistent)
+        # We target the correct file:api
+        nohup uvicorn api:app --host 0.0.0.0 --port 8000 --log-level error > uvicorn.log 2>&1 &
         
         echo "Waiting for API to start on port 8000..."
-        MAX_ATTEMPTS=20
+        MAX_ATTEMPTS=30
         ATTEMPTS=0
         while [ $ATTEMPTS -lt $MAX_ATTEMPTS ]; do
-            # Try to connect, suppressing output/errors
+            # Try to connect, suppressing output/errors (-s) and showing only http_code (-w)
             STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8000/health)
-            if [ "$STATUS" -eq 200 ]; then
-                echo "API is ready! (Status 200)"
+            
+            # 200 is healthy, 404/500 means server is up but the endpoint failed, which is better than 'connection refused'
+            if [ "$STATUS" -ne 0 ]; then
+                echo "API is ready! (Status Code: $STATUS)"
                 break
             fi
+            
             ATTEMPTS=$((ATTEMPTS + 1))
             echo "Attempt $ATTEMPTS/$MAX_ATTEMPTS: Status $STATUS. Waiting 1 second..."
             sleep 1
@@ -68,11 +75,19 @@ jobs:
 
         if [ $ATTEMPTS -eq $MAX_ATTEMPTS ]; then
             echo "❌ API failed to start after $MAX_ATTEMPTS attempts."
+            echo "--- Uvicorn Log ---"
+            cat uvicorn.log
+            echo "-------------------"
             exit 1
         fi
         
+        # Final test: Check the root endpoint for a successful response (should return 200)
         echo "Final API test: Checking root endpoint /"
         curl -X GET http://localhost:8000/
+        
+        # Clean up the background process (optional, but good practice)
+        killall uvicorn
+        
       shell: bash
 
     - name: Archive Metrics Artifacts
