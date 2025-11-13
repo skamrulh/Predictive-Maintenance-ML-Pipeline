@@ -45,8 +45,8 @@ jobs:
     - name: ✅ Evaluate RUL Model
       run: python evaluate_rul.py
 
-    # 2. Test API (Sanity Check) - CORRECTED STEP
-    - name: 🧪 Run API Health Check (CORRECTED)
+    # 2. Test API (Sanity Check)
+    - name: 🧪 Run API Health Check
       # 1. Start Uvicorn in the background, redirecting output to a file.
       # 2. Use a loop to repeatedly check the service until it responds (max 30 attempts/seconds).
       run: |
