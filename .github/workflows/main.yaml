@@ -1,0 +1,67 @@
+# GitHub Actions Workflow for Predictive Maintenance Pipeline
+
+name: CI Pipeline
+
+# Triggers the workflow on push or pull request events to the main branch.
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build_train_test:
+    # Runs on the latest Ubuntu image
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+      
+    - name: Set up Python 3.10
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+
+    - name: Install dependencies
+      run: pip install -r requirements.txt
+
+    - name: Create necessary directories (data, models, artifacts)
+      run: mkdir data models artifacts
+
+    # 1. Run the entire pipeline (Data Generation, Training, Evaluation)
+    - name: Run Data Generation
+      run: python generate_synthetic_data.py
+      
+    - name: Train Classification Model
+      run: python train_classification.py
+      
+    - name: Train RUL Model
+      run: python train_rul.py
+
+    - name: ✅ Evaluate Classification Model
+      run: python evaluate_classification.py
+      
+    - name: ✅ Evaluate RUL Model
+      run: python evaluate_rul.py
+
+    # 2. Test API (Sanity Check)
+    # Since we can't run uvicorn forever, we'll run a quick API sanity test.
+    # We use a trick: start the server in the background and use curl to check health.
+    - name: Run API Health Check
+      # Start the API in the background (&) and wait for it to be ready.
+      run: |
+        python -c "import uvicorn; from api import app; import threading; threading.Thread(target=lambda: uvicorn.run(app, host='0.0.0.0', port=8000)).start()" &
+        # Give the server a few seconds to start up
+        sleep 5
+        # Hit the health check endpoint
+        curl http://localhost:8000/health
+        # The workflow will fail if the curl command above returns a non-200 status or times out
+      shell: bash
+
+    - name: Archive Metrics Artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: model-metrics
+        path: artifacts/
+        retention-days: 7
