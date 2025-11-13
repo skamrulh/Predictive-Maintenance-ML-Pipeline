@@ -4,5 +4,6 @@ scikit-learn
 matplotlib
 joblib
 fastapi
-uvicorn[standard]
+uvicorn
+pydantic
 pyyaml
