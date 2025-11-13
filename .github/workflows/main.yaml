@@ -46,9 +46,13 @@ jobs:
     - name: 🧪 Run API Health Check (with Wait)
       # 1. Start Uvicorn in the background.
       # 2. Use a loop to repeatedly check the service until it responds (max 20 attempts).
+      # nohup uvicorn api:app --host 0.0.0.0 --port 8000 &
       run: |
         # Start Uvicorn in the background using the correct path and port
-        nohup uvicorn api:app --host 0.0.0.0 --port 8000 &
+        uvicorn main:app --host 0.0.0.0 --port 8000 & 
+        sleep 5
+        - name: Health check
+        run: curl http://localhost:8000/health
         
         echo "Waiting for API to start on port 8000..."
         MAX_ATTEMPTS=20
