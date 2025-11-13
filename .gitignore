@@ -1,0 +1,30 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environment
+venv/
+.venv/
+env/
+.env
+
+# Generated data
+# Do NOT upload your data. Instead, add instructions to your
+# README.md on how to generate it using 'generate_synthetic_data.py'.
+data/
+*.csv
+
+# Trained models
+# Models are binary files and can be large.
+# Add instructions to your README.md on how to train them.
+models/
+*.joblib
+
+# Generated metrics and artifacts
+artifacts/
+*.json
+
+# OS-specific files
+.DS_Store
+Thumbs.db

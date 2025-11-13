@@ -1,0 +1,18 @@
+random_seed: 123
+paths: 
+  raw_stream: data/sensor_stream.csv
+  tabular_train: data/train_tabular.csv
+  tabular_valid: data/valid_tabular.csv
+  tabular_holdout: data/holdout_tabular.csv
+  model_dir: models
+  artifacts_dir: artifacts
+  preprocessing_cls: models/pre_cls.joblib
+  model_cls: models/model_cls.joblib
+  metrics_cls: artifacts/metrics_cls.json
+  preprocessing_rul: models/pre_rul.joblib
+  model_rul: models/model_rul.joblib
+  metrics_rul: artifacts/metrics_rul.json
+classification:
+  horizon_hours: 24
+rul:
+  max_cycle_hours: 500
