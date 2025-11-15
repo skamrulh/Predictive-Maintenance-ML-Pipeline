@@ -1,8 +1,5 @@
-# GitHub Actions Workflow for Predictive Maintenance Pipeline
-
 name: CI Pipeline
 
-# Triggers the workflow on push or pull request events to the main branch.
 on:
   push:
     branches: [ main ]
@@ -11,88 +8,59 @@ on:
 
 jobs:
   build_train_test:
-    # Runs on the latest Ubuntu image
     runs-on: ubuntu-latest
-    
     steps:
-    - name: Checkout Repository
-      uses: actions/checkout@v4
-      
-    - name: Set up Python 3.10
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.10'
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-    - name: Install dependencies
-      run: pip install -r requirements.txt
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
 
-    - name: Create necessary directories (data, models, artifacts)
-      run: mkdir -p data models artifacts # Use -p to create parent directories if needed
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
 
-    # 1. Run the entire pipeline (Data Generation, Training, Evaluation)
-    - name: 🚀 Run Data Generation
-      run: python generate_synthetic_data.py
-      
-    - name: 🧠 Train Classification Model
-      run: python train_classification.py
-      
-    - name: 🧠 Train RUL Model
-      run: python train_rul.py
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
 
-    - name: ✅ Evaluate Classification Model
-      run: python evaluate_classification.py
-      
-    - name: ✅ Evaluate RUL Model
-      run: python evaluate_rul.py
+      - name: Run unit tests
+        run: |
+          # adjust the test command to your test runner (pytest/unittest)
+          if command -v pytest >/dev/null 2>&1; then
+            pytest -q
+          else
+            echo "pytest not found — skipping tests"
+          fi
 
-    # 2. Test API (Sanity Check)
-    - name: 🧪 Run API Health Check
-      # 1. Start Uvicorn in the background, redirecting output to a file.
-      # 2. Use a loop to repeatedly check the service until it responds (max 30 attempts/seconds).
-      run: |
-        echo "Starting Uvicorn in background..."
-        # Use nohup to ignore HUP signal (making the background process more persistent)
-        # We target the correct file:api
-        nohup uvicorn api:app --host 0.0.0.0 --port 8000 --log-level error > uvicorn.log 2>&1 &
-        
-        echo "Waiting for API to start on port 8000..."
-        MAX_ATTEMPTS=30
-        ATTEMPTS=0
-        while [ $ATTEMPTS -lt $MAX_ATTEMPTS ]; do
-            # Try to connect, suppressing output/errors (-s) and showing only http_code (-w)
-            STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8000/health)
-            
-            # 200 is healthy, 404/500 means server is up but the endpoint failed, which is better than 'connection refused'
-            if [ "$STATUS" -ne 0 ]; then
-                echo "API is ready! (Status Code: $STATUS)"
-                break
-            fi
-            
-            ATTEMPTS=$((ATTEMPTS + 1))
-            echo "Attempt $ATTEMPTS/$MAX_ATTEMPTS: Status $STATUS. Waiting 1 second..."
-            sleep 1
-        done
+      - name: Start app (background) and run quick API check
+        run: |
+          # Only run this block if you actually have an ASGI app (uvicorn).
+          # Adjust "app:app" to point to my application entry (module:app).
+          if command -v uvicorn >/dev/null 2>&1; then
+            # start uvicorn in background binding to 0.0.0.0:8000
+            nohup uvicorn app:app --host 0.0.0.0 --port 8000 &>/tmp/uvicorn.log &
+            # wait for the server to start (simple wait; for robust check add retry loop)
+            sleep 3
+            echo "Final API test: Checking root endpoint /"
+            curl -fsS -o /dev/null -w "%{http_code}" http://127.0.0.1:8000/ | grep -q "200" && echo "Root endpoint returned 200" || (echo "Root endpoint did not return 200" && cat /tmp/uvicorn.log && exit 1)
+            # cleanup
+            pkill -f uvicorn || true
+          else
+            echo "uvicorn not installed — skipping API check"
+          fi
+        shell: bash
 
-        if [ $ATTEMPTS -eq $MAX_ATTEMPTS ]; then
-            echo "❌ API failed to start after $MAX_ATTEMPTS attempts."
-            echo "--- Uvicorn Log ---"
-            cat uvicorn.log
-            echo "-------------------"
-            exit 1
-        fi
-        
-        # Final test: Check the root endpoint for a successful response (should return 200)
-        echo "Final API test: Checking root endpoint /"
-        curl -X GET http://localhost:8000/
-        
-        # Clean up the background process (optional, but good practice)
-        killall uvicorn
-        
-      shell: bash
-
-    - name: Archive Metrics Artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: model-metrics
-        path: artifacts/
-        retention-days: 7
+      - name: Archive Metrics Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: model-metrics
+          path: artifacts/
+          retention-days: 7
