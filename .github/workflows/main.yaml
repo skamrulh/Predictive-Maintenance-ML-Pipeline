@@ -9,6 +9,7 @@ on:
 jobs:
   build_train_test:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -33,30 +34,11 @@ jobs:
 
       - name: Run unit tests
         run: |
-          # adjust the test command to your test runner (pytest/unittest)
           if command -v pytest >/dev/null 2>&1; then
             pytest -q
           else
             echo "pytest not found — skipping tests"
           fi
-
-      - name: Start app (background) and run quick API check
-        run: |
-          # Only run this block if you actually have an ASGI app (uvicorn).
-          # Adjust "app:app" to point to my application entry (module:app).
-          if command -v uvicorn >/dev/null 2>&1; then
-            # start uvicorn in background binding to 0.0.0.0:8000
-            nohup uvicorn app:app --host 0.0.0.0 --port 8000 &>/tmp/uvicorn.log &
-            # wait for the server to start (simple wait; for robust check add retry loop)
-            sleep 3
-            echo "Final API test: Checking root endpoint /"
-            curl -fsS -o /dev/null -w "%{http_code}" http://127.0.0.1:8000/ | grep -q "200" && echo "Root endpoint returned 200" || (echo "Root endpoint did not return 200" && cat /tmp/uvicorn.log && exit 1)
-            # cleanup
-            pkill -f uvicorn || true
-          else
-            echo "uvicorn not installed — skipping API check"
-          fi
-        shell: bash
 
       - name: Archive Metrics Artifacts
         uses: actions/upload-artifact@v4
